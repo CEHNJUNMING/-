@@ -1,0 +1,156 @@
+# 数据收集
+import requests
+from bs4 import BeautifulSoup
+import csv
+#数据收集
+csv_file = open('xiachufangall1.csv','a',newline='',encoding='utf-8-sig')
+writer = csv.writer(csv_file)
+title=['日期','名字','評分','有多少人做過','用料']
+writer.writerow(title)
+
+cycle=[year+str('%02d' % month) for year in ['2012','2013','2014','2015','2016','2017','2018',] for month in range(1,13)]
+for years in cycle:
+    res = requests.get('https://www.xiachufang.com/explore/monthhonor/'+years+'/')
+    print(res.status_code)
+    html = res.text
+    time.sleep(2)
+    soup = BeautifulSoup( html,'html.parser')
+    all_name = soup.find_all('p',class_="name")
+    all_ingredients=soup.find_all('p',class_="ing ellipsis")
+    all_stats_and_done = soup.find_all('p',class_="stats")
+    all_together=[]
+    for i in range(len(all_name)):
+        list_all_together=[years,all_name[i].text.strip(),all_stats_and_done[i].find('span').text.strip(),all_stats_and_done[i].find(class_="bold score").text.strip(),all_ingredients[i].text.strip()]
+        all_together.append(list_all_together)
+    for x in all_together:
+        writer.writerow(x)
+csv_file.close()
+# 数据清洗
+import pandas as pd
+import matplotlib.pyplot as plt
+#数据清洗
+df=pd.read_csv('xiachufangall1.csv')
+#df.head()
+df[df['評分']>10]#修正評分
+df['評分'].replace([43.0, 150.0,138.0, 81.0], [8.2,8.2,8.2,8.2],inplace=True)
+# 数据分析
+#数据分析
+df['評分'].max()
+df['評分'].min()
+df['評分'].mean()
+df['有多少人做過'].max()
+df['有多少人做過'].min()
+df['有多少人做過'].mean()
+df[df['有多少人做過']==df['有多少人做過'].max()]#输出最多人做过的食物
+df[df['評分']==df['評分'].max()]#输出评分最高的食物
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf#统计包
+from statsmodels.tsa.seasonal import seasonal_decompose
+import jieba#词频分析包
+import seaborn as sns#绘图包
+import datetime
+#绘制箱型图
+score=(df.iloc[:,2])
+f, ax= plt.subplots(figsize = (5, 10))
+sns.boxplot(y=score)
+
+#sns.boxplot(x='')
+plt.show()
+#评分和被做次数图
+plt.scatter(df['評分'], df['有多少人做過'])#s=xx可以設置點的大小
+plt.rcParams['font.sans-serif'] = ['KaiTi']
+#plt.yscale('log')
+plt.xlabel('評分')
+plt.ylabel('菜品被做次數')
+# Add title
+plt.title('菜品被做次數與評分關係')
+plt.show()
+#菜品被做次数分布
+plt.hist(df['有多少人做過'])
+plt.xlabel('菜品被做次數')
+plt.ylabel('統計量')
+# Add title
+plt.title('菜品被做次數分佈')
+plt.show()
+#菜被做大于25000次的有：
+df[df['有多少人做過']>25000]
+#评分分布
+plt.hist(df['評分'])
+plt.show()
+#评分标准差
+df['評分'].std()
+#求每个月评分均值
+times_score=[]
+list=set(df.iloc[:,0])
+for i in list:
+    #print(i)
+    month_mean=df[df["日期"]==i].loc[:,'評分'].mean()
+    print(month_mean)
+    times_score.append(month_mean)
+#print(times_score)
+#建立时间序列与月均值匹配
+dt1 = pd.date_range(start="20120101", end="20181231", freq="M")
+df_times = pd.DataFrame(times, index=dt1)
+plt.plot(df_times)
+plt.show()
+#时间序列分解
+decomposition = seasonal_decompose(df_times, model="additive")
+
+trend = decomposition.trend
+seasonal = decomposition.seasonal
+residual = decomposition.resid
+#趋势分析
+plt.plot(trend)
+plt.show()
+#季节分析
+plt.plot(seasonal)
+plt.show()
+#残差分析
+plt.plot(residual)
+plt.show()
+#相关性分析
+plot_acf(df_times)
+#词频统计
+stop_word=pd.read_excel('stopWords11.xlsx',encoding='utf-8-sig')
+stop_word=pd.read_excel('stopWords11.xlsx',encoding='utf-8-sig')
+stop_word.columns=['key']
+#stop_word.head()
+stop_list=stop_word['key'].tolist()
+def text_cut(f):
+    return[w for w in jieba.cut(f) if w not in stop_list]
+    word_list=[]
+for line in df[df['名字'].notnull()]['名字'].tolist():
+    for word in text_cut(line):
+        word_list.append(word)
+#print(word_list)
+#显示词频排名前20的词汇
+word_count=pd.Series(word_list).value_counts().sort_values(ascending=False)[0:20]
+#print(word_count)
+#词频绘图
+fig =plt.figure(figsize=(12,5))
+x=word_count.index.tolist()
+y=word_count.values.tolist()
+sns.barplot(x,y)
+plt.ylabel('count')
+plt.title('词频TOP20')
+sns.despine(bottom=True)
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 中文字体设置-黑体
+plt.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
+plt.show()
+#选出最受欢迎的前50个菜，对比分析什么词对评分有促进作用
+done_15000=df[df['有多少人做過']>15000]['名字']
+word_list15000=[]
+for line in done_15000.tolist():
+    for word in text_cut(line):
+        word_list15000.append(word)
+word_count1=pd.Series(word_list15000).value_counts().sort_values(ascending=False)[0:20]
+#print(word_count1)
+fig =plt.figure(figsize=(12,5))
+x=word_count1.index.tolist()
+y=word_count1.values.tolist()
+sns.barplot(x,y)
+plt.ylabel('count')
+plt.title('最有影响力词频TOP20')
+sns.despine(bottom=True)
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 中文字体设置-黑体
+plt.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
+plt.show()
