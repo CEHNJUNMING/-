@@ -154,3 +154,330 @@ sns.despine(bottom=True)
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 中文字体设置-黑体
 plt.rcParams['axes.unicode_minus'] = False  # 解决保存图像是负号'-'显示为方块的问题
 plt.show()
+
+#機器學習
+import matplotlib.pyplot as plt                 #加载matplotlib用于数据的可视化
+from sklearn.decomposition import PCA           #加载PCA算法包
+import pandas as pd
+from sklearn import metrics                     #交叉檢驗包
+from sklearn.model_selection import train_test_split          #數據分割包
+from sklearn.feature_extraction.text import TfidfVectorizer   #TF-idf向量化包
+from sklearn.ensemble import RandomForestClassifier          #隨機森林包
+import jieba                                                     #分詞包
+from sklearn.feature_extraction.text import CountVectorizer     #普通向量化包
+from sklearn.neighbors import KNeighborsClassifier              #knn預測
+from sklearn import svm                                         #支持向量機包
+from sklearn import linear_model                                 #線性包,可做邏輯回歸
+import numpy as np
+#数据清洗
+df=pd.read_csv('xiachufangfenlei20191128114.csv')
+#df.head()
+df[df['評分']>10]#修正評分
+df['評分'].replace([43.0, 150.0,138.0, 81.0], [8.2,8.2,8.2,8.2],inplace=True)
+#去除空值
+df.dropna(inplace=True)
+#基本信息
+df.info()
+#結巴分詞
+stop_word=pd.read_excel('stopWords11.xlsx',encoding='utf-8-sig')
+stop_word.columns=['key']
+#stop_word.head()
+stop_list=stop_word['key'].tolist()
+#定義停用詞
+def text_cut(f):
+    return[w for w in jieba.cut(f) if w not in stop_list]
+#停用词增补
+stop_list.append(' ')
+stop_list.append('版')
+stop_list.append('超')
+stop_list.append('圣诞')
+stop_list.append('自制')
+stop_list.append('好吃')
+stop_list.append('★')
+#分詞
+word_list=[]
+for line in df[df['名字'].notnull()]['名字'].tolist():
+    x=' '.join(text_cut(line))
+    word_list.append(x)
+#特征值轉化
+#普通向量化方法
+vectorizer = CountVectorizer()
+print(vectorizer.fit_transform(word_list).todense())#向量化
+print(vectorizer.vocabulary_)#统计词频
+#劈开分组
+y = df['分类']
+X=vectorizer.fit_transform(word_list).todense()
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3,random_state = 1, stratify=y)
+#TF-IDF向量化
+tfidf = TfidfVectorizer(max_df=0.5, min_df=4)#设置mindf和maxdf分别
+X2= tfidf.fit_transform(word_list)
+#pca降維
+pca = PCA(n_components=0.9)#保留百分之90信息
+newX = pca.fit_transform(X)
+#用于测试降维保留了百分之多少数据信息pca.explained_variance_ratio_
+X3_train, X3_test, y3_train, y3_test = train_test_split(newX, y, test_size = 0.3,random_state = 1, stratify=y)
+newX.shape, X3_train.shape, X3_test.shape,y3_test.shape
+#預測
+#pca降维随机森林预测
+clf = RandomForestClassifier(n_estimators=500)
+#训练
+clf.fit(X3_train, y3_train)
+#预测
+y3_pred = clf.predict(X3_test)
+print(metrics.accuracy_score(y3_test, y3_pred))
+#knn降维預測
+max_socre=0
+for x in [i for i in range(1,20,2)]:
+    knn = KNeighborsClassifier(n_neighbors = x)
+    knn.fit(X3_train, y3_train)
+    #y_predict
+    #y_test
+    socre=knn.score(X3_test, y3_test)
+    print('score: {}'.format(knn.score(X3_test, y3_test)))
+    if socre>max_socre:
+        max_socre=socre
+print('最優概率為'+str(max_socre))
+#svc降维預測
+clf = svm.SVC(gamma='auto')
+clf.fit(X3_train, y3_train)
+clf.predict(X3_test)
+#print(y_test)
+print('score: {}'.format(clf.score(X3_test, y3_test)))
+#邏輯回歸降维預測
+LR = linear_model.LogisticRegression(solver='lbfgs', max_iter = 1000,multi_class='auto')
+LR.fit(X3_train, y3_train)
+LR.predict(X3_test)
+#print(y_test)
+print('score: {}'.format(LR.score(X3_test, y3_test)))
+#隨機森林普通預測
+#训练
+clf.fit(X_train, y_train)
+#预测
+y_pred = clf.predict(X_test)
+print(metrics.accuracy_score(y_test, y_pred))
+#knn普通預測
+max_socre=0
+for x in [i for i in range(1,20,2)]:
+    knn = KNeighborsClassifier(n_neighbors = x)
+    knn.fit(X_train, y_train)
+    #y_predict
+    #y_test
+    socre=knn.score(X_test, y_test)
+    print('score: {}'.format(knn.score(X_test, y_test)))
+    if socre>max_socre:
+        max_socre=socre
+print('最優概率為'+str(max_socre))
+#svc普通預測
+clf = svm.SVC(gamma='auto')
+clf.fit(X_train, y_train)
+clf.predict(X_test)
+#print(y_test)
+print('score: {}'.format(clf.score(X_test, y_test)))
+#邏輯回歸普通預測
+LR = linear_model.LogisticRegression(solver='lbfgs', max_iter = 1000,multi_class='auto')
+LR.fit(X_train, y_train)
+LR.predict(X_test)
+#print(y_test)
+print('score: {}'.format(LR.score(X_test, y_test)))
+#tf-idf特征化准确率如下
+tfidf = TfidfVectorizer(max_df=0.9, min_df=2)#设置mindf和maxdf分别
+X2 = tfidf.fit_transform(word_list)
+X2_train, X2_test, y2_train, y2_test = train_test_split(X2, y, test_size=0.3, random_state=42)
+#隨機森林基於tf-idf預測
+clf = RandomForestClassifier(n_estimators=500)
+#训练
+clf.fit(X2_train, y2_train)
+#预测
+y2_pred = clf.predict(X2_test)
+print(metrics.accuracy_score(y2_test, y2_pred))
+#knn基於tf-idf預測
+max_socre=0
+for x in [i for i in range(1,20,2)]:
+    knn = KNeighborsClassifier(n_neighbors = x)
+    knn.fit(X2_train, y2_train)
+    #y_predict
+    #y_test
+    socre=knn.score(X2_test, y2_test)
+    print('score: {}'.format(knn.score(X2_test, y2_test)))
+    if socre>max_socre:
+        max_socre=socre
+print('最優概率為'+str(max_socre))
+#svc基於tf-idf預測
+clf = svm.SVC(gamma='auto')
+clf.fit(X2_train, y2_train)
+clf.predict(X2_test)
+#print(y_test)
+print('score: {}'.format(clf.score(X2_test, y2_test)))
+#邏輯回歸基於tf-idf預測
+LR = linear_model.LogisticRegression(solver='lbfgs', max_iter = 1000,multi_class='auto')
+LR.fit(X2_train, y2_train)
+LR.predict(X2_test)
+#print(y_test)
+print('score: {}'.format(LR.score(X2_test, y2_test)))
+# 决策树回歸基於tf-idf預測
+from scipy.stats import randint
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import RandomizedSearchCV
+
+# Setup the parameters and distributions to sample from: param_dist
+param_dist = {"max_depth": [3, None],
+              "max_features": randint(1, 9),
+              "min_samples_leaf": randint(1, 9),
+              "criterion": ["gini", "entropy"]}
+
+# Instantiate a Decision Tree classifier: tree
+tree = DecisionTreeClassifier()
+
+# Instantiate the RandomizedSearchCV object: tree_cv
+tree_cv = RandomizedSearchCV(tree, param_dist, cv=5)
+
+# Fit it to the data
+tree_cv.fit(X2_test, y2_test)
+
+# Print the tuned parameters and score
+print("Tuned Decision Tree Parameters: {}".format(tree_cv.best_params_))
+print("Best score is {}".format(tree_cv.best_score_))
+#菜名及用料合并提高准确率
+df['菜名用料']=df['名字']+df['用料']
+#分詞
+word_list2=[]
+for line in df[df['菜名用料'].notnull()]['菜名用料'].tolist():
+    x=' '.join(text_cut(line))
+    word_list2.append(x)
+#TF-IDF向量化
+tfidf = TfidfVectorizer(max_df=0.5, min_df=4)#设置mindf和maxdf分别
+X_word_list2= tfidf.fit_transform(word_list2)
+X4_train, X4_test, y4_train, y4_test = train_test_split(X_word_list2, y, test_size = 0.3,random_state = 1, stratify=y)
+#隨機森林基於tf-idf預測
+clf = RandomForestClassifier(n_estimators=100)
+#训练
+clf.fit(X4_train, y4_train)
+#预测
+y4_pred = clf.predict(X4_test)
+print(metrics.accuracy_score(y4_test, y4_pred))
+#最終準確率為84%
+#分析可視化
+#混淆矩陣
+from sklearn.metrics import confusion_matrix
+confusion_matrix = confusion_matrix(y2_test, y2_pred)
+print('y_test: ALL: {}, Label1: {}, Label2: {}, Label3: {}, Label4: {}'.format(len(y2_test),len(y2_test[y2_test == 1]), len(y2_test[y2_test == 2]),len(y2_test[y2_test == 3]),len(y2_test[y2_test == 4])))
+print('y_pred: ALL: {}, Label1: {}, Label2: {}, Label3: {}, Label4: {}'.format(len(y2_pred),len(y2_pred[y2_pred == 1]), len(y2_pred[y2_pred == 2]),len(y2_pred[y2_pred == 3]),len(y2_pred[y2_pred == 4])))
+print(confusion_matrix)
+plt.matshow(confusion_matrix)
+plt.title('Confusion Matrix')
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+plt.colorbar()
+plt.show()
+#knn选择过程
+# Setup arrays to store train and test accuracies
+neighbors = np.arange(1, 15)
+train_accuracy = np.empty(len(neighbors))
+test_accuracy = np.empty(len(neighbors))
+
+# Loop over different values of k
+for i, k in enumerate(neighbors):
+    # Setup a k-NN Classifier with k neighbors: knn
+    knn = KNeighborsClassifier(n_neighbors=k)
+
+    # Fit the classifier to the training data
+    knn.fit(X2_train,y2_train)
+    
+    #Compute accuracy on the training set
+    train_accuracy[i] = knn.score(X2_train, y2_train)
+
+    #Compute accuracy on the testing set
+    test_accuracy[i] = knn.score(X2_test, y2_test)
+
+# Generate plot
+plt.title('k-NN: Varying Number of Neighbors')
+plt.plot(neighbors, test_accuracy, label = 'Testing Accuracy')
+plt.plot(neighbors, train_accuracy, label = 'Training Accuracy')
+plt.legend()
+plt.xlabel('Number of Neighbors')
+plt.ylabel('Accuracy')
+plt.show()
+#knn混淆矩阵 准确及召回矩阵
+# Import necessary modules
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+
+knn = KNeighborsClassifier(n_neighbors=3)
+
+# Fit the classifier to the training data
+knn.fit(X2_train, y2_train)
+
+# Predict the labels of the test data: y_pred
+y_pred = knn.predict(X2_test)
+
+# Generate the confusion matrix and classification report
+print(confusion_matrix(y2_test, y2_pred))
+print(classification_report(y2_test, y2_pred))
+#隨機森林基於tf-idf預測 混淆矩阵 准确及召回矩阵分析
+clf = RandomForestClassifier(n_estimators=100)
+#训练
+clf.fit(X2_train, y2_train)
+#预测
+y2_pred = clf.predict(X2_test)
+print(metrics.accuracy_score(y2_test, y2_pred))
+print(confusion_matrix(y2_test, y2_pred))
+print(classification_report(y2_test, y2_pred))
+#葷菜素菜時間序列分析
+#求肉菜每个月出现次数
+class_1=df[df['分类']==1]
+times_score1=[]
+list=set(df.iloc[:,0])#删除重复日期
+for i in list:
+    listcount=class_1[class_1["日期"]==i]['日期']#找每个月出现肉菜的列表
+    a=0
+    for b in listcount:#循环列表统计次数
+       a=a+1 
+    times_score1.append(a)
+#print(times_score)
+#求素菜每个月出现次数
+class_2=df[df['分类']==2]
+times_score2=[]
+list=set(df.iloc[:,0])#删除重复日期
+for i in list:
+    listcount=class_2[class_2["日期"]==i]['日期']#找每个月出现素菜的列表
+    a=0
+    for b in listcount:#循环列表统计次数
+       a=a+1 
+    times_score2.append(a)
+#print(times_score)
+#求肉素菜混合每个月出现次数
+class_3=df[df['分类']==3]
+times_score3=[]
+list=set(df.iloc[:,0])#删除重复日期
+for i in list:
+    listcount=class_3[class_3["日期"]==i]['日期']#找每个月出现肉素菜混合的列表
+    a=0
+    for b in listcount:#循环列表统计次数
+       a=a+1 
+    times_score3.append(a)
+#print(times_score)
+#求其他混合每个月出现次数
+class_4=df[df['分类']==4]
+times_score4=[]
+list=set(df.iloc[:,0])#删除重复日期
+for i in list:
+    listcount=class_4[class_4["日期"]==i]['日期']#找每个月出现其他菜混合的列表
+    a=0
+    for b in listcount:#循环列表统计次数
+       a=a+1 
+    times_score4.append(a)
+#print(times_score)
+#建立时间序列与月均值匹配
+dt1 = pd.date_range(start="20120101", end="20151231", freq="M")
+df_times1 = pd.DataFrame(times_score1, index=dt1)
+df_times2 = pd.DataFrame(times_score2, index=dt1)
+df_times3 = pd.DataFrame(times_score3, index=dt1)
+df_times4 = pd.DataFrame(times_score4, index=dt1)
+plt.plot(df_times1)
+plt.show()
+plt.plot(df_times2)#荤素搭配的月统计数量分布图
+plt.show()
+plt.plot(df_times3)#荤素搭配的月统计数量分布图
+plt.show()
+plt.plot(df_times4)#其他菜的月统计数量分布图
+plt.show()
